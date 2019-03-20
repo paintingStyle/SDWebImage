@@ -103,10 +103,74 @@ static const CGFloat kDestSeemOverlap = 2.0f;   // the numbers of pixels to over
         return nil;
     }
     
-    UIImage *image = [[UIImage alloc] initWithData:data];
+	UIImage *image = nil;
+	if (data.length/1024 > 1280) { // >=1.2MB 需要压缩
+		image = [self imageCompressWithImage:image];
+	}else {
+		image = [[UIImage alloc] initWithData:data];
+	}
     image.sd_imageFormat = [NSData sd_imageFormatForImageData:data];
     
     return image;
+}
+
+- (UIImage *)imageCompressWithImage:(UIImage *)image {
+	
+	CGFloat imageWidth = image.size.width;
+	CGFloat imageHeight = image.size.height;
+	CGFloat boundary = 1280;
+	
+	// width, height <= 1280, Size remains the same
+	if (imageWidth <= boundary && imageHeight <= boundary) {
+		UIImage *reImage = [self resizedImage:imageWidth withHeight:imageHeight withImage:image];
+		return UIImageJPEGRepresentation(reImage, 0.5);
+	}
+	
+	// aspect ratio
+	CGFloat s = MAX(imageWidth, imageHeight) / MIN(imageWidth, imageHeight);
+	
+	if (s <= 2) {
+		// Set the larger value to the boundary, the smaller the value of the compression
+		CGFloat x = MAX(imageWidth, imageHeight) / boundary;
+		if (imageWidth > imageHeight) {
+			imageWidth = boundary ;
+			imageHeight = imageHeight / x;
+		}else{
+			imageHeight = boundary;
+			imageWidth = imageWidth / x;
+		}
+	}else{
+		// width, height > 1280
+		if (MIN(imageWidth, imageHeight) >= boundary) {
+			//- parameter type: session image boundary is 800, timeline is 1280
+			// boundary = type == .session ? 800 : 1280
+			CGFloat x = MIN(imageWidth, imageHeight) / boundary;
+			if (imageWidth < imageHeight) {
+				imageWidth = boundary;
+				imageHeight = imageHeight / x;
+			} else {
+				imageHeight = boundary;
+				imageWidth = imageWidth / x;
+			}
+		}
+	}
+	
+	UIImage *reImage = [self resizedImage:imageWidth withHeight:imageHeight withImage:image];
+	return UIImageJPEGRepresentation(reImage, 0.5);
+}
+
+- (UIImage *)resizedImage:(CGFloat)imageWidth
+			   withHeight:(CGFloat)imageHeight
+				withImage:(UIImage *)image {
+	
+	CGRect newRect = CGRectMake(0, 0, imageWidth, imageHeight);
+	UIImage *newImage;
+	UIGraphicsBeginImageContext(newRect.size);
+	newImage = [[UIImage alloc] initWithCGImage:image.CGImage scale:1 orientation:image.imageOrientation];
+	[newImage drawInRect:newRect];
+	newImage = UIGraphicsGetImageFromCurrentImageContext();
+	UIGraphicsEndImageContext();
+	return newImage;
 }
 
 - (UIImage *)incrementallyDecodedImageWithData:(NSData *)data finished:(BOOL)finished {
